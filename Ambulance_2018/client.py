@@ -143,7 +143,7 @@ class Player(object):
                 #print(center)
                 #print(patientsToVisit)
                 
-                numBuckets = math.ceil(len(patientsToVisit)/5)
+                numBuckets = math.ceil(len(patientsToVisit)/6)
                 nn = len(patientsToVisit)/numBuckets
                 globalOrder = []
                 ii = 0
