@@ -4,6 +4,7 @@ import sys
 import time
 from sklearn.cluster import KMeans
 import numpy as np
+import math
 
 HOST = '127.0.0.1'
 PORT = 5000
@@ -96,8 +97,8 @@ class Player(object):
 
         ## create data for clustering
         locData = []
-        for patient_id in patients:
-            patiend = patients[patient_id]
+        for patient_id in self.patients:
+            patient = self.patients[patient_id]
             locData.append((patient['xloc'], patient['yloc']))
         locData = np.array(locData)
         
@@ -112,24 +113,71 @@ class Player(object):
         
         ## creating res_hos [i.e. which hospital to place where, based on num of avail ambulances]
         hospitalsByNumber = {}
-        for hospital_id in hospitals:
-            hospitalsByNumber[hospital_id] = hospitals[hospital_id]['ambulances_at_start']
+        for hospital_id in self.hospitals:
+            hospitalsByNumber[hospital_id] = self.hospitals[hospital_id]['ambulances_at_start']
         sorted_by_number_ambulances = sorted(hospitalsByNumber.items(), key=lambda kv: len(kv[1]))
         ## cluster with min number of patients matched with hospital with min number of avail ambulances
+        mappingCenterToAmbulances = {}
         for i in range(len(sorted_by_number_ambulances)):
             x,y = centers[sorted_by_number_elements_cluster[i][0]]
             res_hos[sorted_by_number_ambulances[i][0]] = {'xloc' : x, 'yloc' : y}
-        
+            mappingCenterToAmbulances[(x,y)] = sorted_by_number_ambulances[i][1]
+       
+        # can do this because labels are 0,1,2,3,4
+        for i in range(len(clustering)):
+            cluster = clustering[i]
+            center = tuple(centers[i])
+            ambulancesOperatingInThisCluster = mappingCenterToAmbulances[center]
+            ambulanceBucketPatient = self.radDivide(cluster, ambulancesOperatingInThisCluster, center)
+            # decide on order for ambulance using search
+            for ambulance_id in ambulanceBucketPatient:
+                patientsToVisit = ambulanceBucketPatient[ambulance_id]
+                sorted(patientsToVisit, key=lambda patient_id : self.patients[patient_id]['rescuetime'])
+                #aa
+                print(ambulance_id)
+                print(center)
+                print(patientsToVisit)
 
-        for hos_id, hos in self.hospitals.items():
-            res_hos[hos_id] = {'xloc': self.patients[counter]['xloc'], 'yloc': self.patients[counter]['yloc']}
-            counter += 4
-
-        for amb_id, amb in self.ambulances.items():
-            if p_count < total_patients - 4:
-                res_amb[amb_id] = ['p' + str(i) for i in range(p_count, p_count+4)] + ['h' + str(self.ambulances[amb_id]['starting_hospital'])]
-            else:
-                res_amb[amb_id] = ['h' + str(self.ambulances[amb_id]['starting_hospital'])]
-            p_count += 4
-
+                #order = orderOfPatients(patientsToVisit, center)
+                res_amb[ambulance_id] = ['h'+str(self.ambulances[ambulance_id]['starting_hospital'])]
+                #parse(order, patientsToVisit)
         return (res_hos, res_amb)
+
+    def orderOfPatients(self, patientsToVisit, center):
+        return patientsToVisit
+        #if len(patientsToVisit) >= THRESHOLD:
+        #    # do something
+        #else:
+        #    visited = [0]*len(patientsToVisit)
+        #    for i in range(len(patientsToVisit)):
+        #        visited[i] = 1
+        #        if canBeSaved(center, 
+        #        dfs(i, patientsToVisit, visited, [i], 1, center, 0)
+        #        visited[i] = 0
+    
+    # nextPatientToSaveIndex might also cater hospital
+    #def dfs(nextPatientToSaveIndex, allPatients, visited, path, ambulanceLocation, timeElapsed):
+        
+    def parse(self, order):
+        return 0
+
+    def radDivide(self, patientsIndexList, ambulances, hospital):
+        num_ambulances = len(ambulances)
+        num_patients = len(patientsIndexList)
+        ret = {}
+        angle = []
+        for pID in range(0, num_patients):
+            pat = self.patients[patientsIndexList[pID]]
+            theta = math.atan2(pat['yloc'] - hospital[1], pat['xloc'] - hospital[0])
+            if theta < 0.0:
+                theta += 2 * math.pi
+            angle.append([patientsIndexList[pID], theta])
+        angle = sorted(angle, key = lambda x: x[1])
+        n = num_patients/num_ambulances
+        for i in range(0, num_ambulances):
+            ambID = ambulances[i]
+            ambPat = []
+            for j in range(int(i * n), int((i + 1) * n)):
+                ambPat.append(angle[j][0])
+            ret[ambID] = ambPat
+        return ret
