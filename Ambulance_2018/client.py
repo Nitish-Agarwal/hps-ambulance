@@ -120,13 +120,16 @@ class Player(object):
         mappingCenterToAmbulances = {}
         for i in range(len(sorted_by_number_ambulances)):
             x,y = centers[sorted_by_number_elements_cluster[i][0]]
-            res_hos[sorted_by_number_ambulances[i][0]] = {'xloc' : x, 'yloc' : y}
-            mappingCenterToAmbulances[(x,y)] = sorted_by_number_ambulances[i][1]
+            res_hos[sorted_by_number_ambulances[i][0]] = {'xloc' : int(x), 'yloc' : int(y)}
+            mappingCenterToAmbulances[(int(x),int(y))] = sorted_by_number_ambulances[i][1]
        
         # can do this because labels are 0,1,2,3,4
         for i in range(len(clustering)):
+            print("clustering")
             cluster = clustering[i]
+            print(len(cluster))
             center = tuple(centers[i])
+            center = (int(center[0]), int(center[1]))
             ambulancesOperatingInThisCluster = mappingCenterToAmbulances[center]
             ambulanceBucketPatient = self.radDivide(cluster, ambulancesOperatingInThisCluster, center)
             # decide on order for ambulance using search
