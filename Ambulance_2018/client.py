@@ -5,6 +5,7 @@ import time
 from sklearn.cluster import KMeans
 import numpy as np
 import math
+import copy
 
 HOST = '127.0.0.1'
 PORT = 5000
@@ -125,9 +126,9 @@ class Player(object):
        
         # can do this because labels are 0,1,2,3,4
         for i in range(len(clustering)):
-            print("clustering")
+            #print("clustering")
             cluster = clustering[i]
-            print(len(cluster))
+            #print(len(cluster))
             center = tuple(centers[i])
             center = (int(center[0]), int(center[1]))
             ambulancesOperatingInThisCluster = mappingCenterToAmbulances[center]
@@ -137,32 +138,82 @@ class Player(object):
                 patientsToVisit = ambulanceBucketPatient[ambulance_id]
                 sorted(patientsToVisit, key=lambda patient_id : self.patients[patient_id]['rescuetime'])
                 #aa
-                print(ambulance_id)
-                print(center)
+                #print(ambulance_id)
+                #print(center)
                 print(patientsToVisit)
 
-                #order = orderOfPatients(patientsToVisit, center)
-                res_amb[ambulance_id] = ['h'+str(self.ambulances[ambulance_id]['starting_hospital'])]
-                #parse(order, patientsToVisit)
+                order = self.orderOfPatients(patientsToVisit, center)
+                order = [patientsToVisit[x] if x is not -1 else -1 for x in order]
+                print("bestPath")
+                print(order)
+    
+                res_amb[ambulance_id] = self.parse(order, self.ambulances[ambulance_id]['starting_hospital'])
         return (res_hos, res_amb)
 
     def orderOfPatients(self, patientsToVisit, center):
-        return patientsToVisit
-        #if len(patientsToVisit) >= THRESHOLD:
-        #    # do something
-        #else:
-        #    visited = [0]*len(patientsToVisit)
-        #    for i in range(len(patientsToVisit)):
-        #        visited[i] = 1
-        #        if canBeSaved(center, 
-        #        dfs(i, patientsToVisit, visited, [i], 1, center, 0)
-        #        visited[i] = 0
+        THRESHOLD = 12
+        self.bestPath = []
+        self.bestPathValue = 0
+        if len(patientsToVisit) >= THRESHOLD:
+            # do something
+            return [-1]
+        else:
+            visited = [0] * len(patientsToVisit)
+            for i in range(len(patientsToVisit)):
+                pt = self.patients[patientsToVisit[i]]
+                pt = (pt['xloc'], pt['yloc'])
+                if self.canBeSaved(center, self.patients[patientsToVisit[i]], 0):
+                    self.dfs(i, patientsToVisit, visited, [i], center, 0 + self.dist(center, pt) + 1, center)
+            #print("bestPath")
+            #print(self.bestPath)
+            print("saved")
+            print(self.bestPathValue)
+            return self.bestPath
     
     # nextPatientToSaveIndex might also cater hospital
-    #def dfs(nextPatientToSaveIndex, allPatients, visited, path, ambulanceLocation, timeElapsed):
+    def dfs(self, nextPatientToSaveIndex, patientsToVisitIndices, visited, path, ambulanceLocation, timeElapsed, center):
+        #print(nextPatientToSaveIndex)
+        #if nextPatientToSaveIndex != -1:
+        #    visited[nextPatientToSaveIndex] = 1
+        #terminal condition
+        #if(sum(visited) == len(patientsToVisitIndices)):
+        if path.count(-1) + len(patientsToVisitIndices) == len(path):
+        #print("t cond")
+            translatedPath = [patientsToVisitIndices[x] if x is not -1 else -1 for x in path]
+            translatedPath.append(-1)
+            value = self.peopleSaved(translatedPath, center)
+            if value > self.bestPathValue:
+                #print("t cond2")
+                #print(value)
+                self.bestPath = path
+                self.bestPathValue = value
+        else:
+            nextAmbulanceLocation = center
+            if nextPatientToSaveIndex != -1:
+                patient = self.patients[patientsToVisitIndices[nextPatientToSaveIndex]]
+                nextAmbulanceLocation = (patient['xloc'], patient['yloc'])
+            for i in range(len(patientsToVisitIndices)):
+                if i not in path:
+                    nextPath = copy.deepcopy(path)
+                    nextPath.append(i)
+                    nextPt = self.patients[patientsToVisitIndices[i]]
+                    nextPt = (nextPt['xloc'], nextPt['yloc'])
+                    self.dfs(i, patientsToVisitIndices, visited, nextPath, nextAmbulanceLocation, timeElapsed + self.dist(nextAmbulanceLocation, nextPt) + 1, center)
+            # hospital to hospital case
+            if nextPatientToSaveIndex != -1:
+                nextPath = copy.deepcopy(path)
+                nextPath.append(-1)
+                self.dfs(-1, patientsToVisitIndices, visited, nextPath, center, timeElapsed + self.dist(nextAmbulanceLocation, center)+ 1, center) 
+        #visited[nextPatientToSaveIndex] = 0
         
-    def parse(self, order):
-        return 0
+    def dist(self, a, b):
+        return int(abs(a[0] - b[0]) + abs(a[1] - b[1]))
+
+    def canBeSaved(self, hosp, patient, time):
+        return True
+
+    def parse(self, order, hospital_id):
+        return [('p'+ str(x)) if x is not -1 else ('h'+str(hospital_id)) for x in order]
 
     def radDivide(self, patientsIndexList, ambulances, hospital):
         num_ambulances = len(ambulances)
@@ -184,3 +235,45 @@ class Player(object):
                 ambPat.append(angle[j][0])
             ret[ambID] = ambPat
         return ret
+    
+    def peopleSaved(self, path, hospital):
+        ret = 0
+        time = 0
+        locX = hospital[0]
+        locY = hospital[1]
+        p1, p2, p3, p4 = [-1]*4
+        for p in path:
+            if p == -1:
+                num_p = (p1 > -1) + (p2 > -1) + (p3 > -1) + (p4 > -1)
+                time += self.dist([hospital[0], hospital[1]], [locX, locY]) + num_p
+                locX = hospital[0]
+                locY = hospital[1]
+                if p4 != -1:
+                    ret += self.saved(self.patients[p4], time)
+                if p3 != -1:
+                    ret += self.saved(self.patients[p3], time)
+                if p2 != -1:
+                    ret += self.saved(self.patients[p2], time)
+                if p1 != -1:
+                    ret += self.saved(self.patients[p1], time)
+                p1 = -1
+                p2 = -1
+                p3 = -1
+                p4 = -1
+            else:
+                if p4 != -1:
+                    return -1
+                p4 = p3
+                p3 = p2
+                p2 = p1
+                p1 = p
+                time += self.dist( [self.patients[p]['xloc'], self.patients[p]['yloc']], [locX, locY]) + 1
+                locX = self.patients[p]['xloc']
+                locY = self.patients[p]['yloc']
+        return ret
+    
+    def saved(self, pID, time):
+	    if time > pID['rescuetime']:
+		    return 0
+	    else:
+		    return 1
