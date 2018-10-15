@@ -141,57 +141,65 @@ class Player(object):
                 #aa
                 #print(ambulance_id)
                 #print(center)
-                print(patientsToVisit)
+                #print(patientsToVisit)
+                
+                numBuckets = math.ceil(len(patientsToVisit)/5)
+                nn = len(patientsToVisit)/numBuckets
+                globalOrder = []
+                ii = 0
+                tt = 0
+                while ii < numBuckets:
+                    #print(ii)
+                    #print(nn)
+                    ll = patientsToVisit[int(ii * nn): int((ii + 1) * nn)]
+                    #print(ll)
+                    order, tt = self.orderOfPatients(ll, center, tt)
+                    #order.append(-1)
+                    #order = [ll[x] if x is not -1 else -1 for x in order]
+                    globalOrder += order
+                    ii += 1 
 
-                order = self.orderOfPatients(patientsToVisit, center)
-                order = [patientsToVisit[x] if x is not -1 else -1 for x in order]
-                print("bestPath")
-                print(order)
+                #print("bestPath")
+                #print(order)
     
-                res_amb[ambulance_id] = self.parse(order, self.ambulances[ambulance_id]['starting_hospital'])
+                res_amb[ambulance_id] = self.parse(globalOrder, self.ambulances[ambulance_id]['starting_hospital'])
         return (res_hos, res_amb)
 
-    def orderOfPatients(self, patientsToVisit, center):
-        THRESHOLD = 15
+    def orderOfPatients(self, patientsToVisit, center, time):
         self.onPath = [0]*len(patientsToVisit)
         self.path = []
         self.bestPath = []
         self.pathLen = 0
         self.bestPathValue = 0
-        self.states = 0
-        if len(patientsToVisit) >= THRESHOLD:
-            return [-1]
-        else:
-            visited = [0] * len(patientsToVisit)
-            for i in range(len(patientsToVisit)):
-                self.dfs(i, patientsToVisit, center)
-            print("saved " + str(self.bestPathValue) + "/" + str(len(patientsToVisit)))
-            return self.bestPath
+        self.timeT = 0
+        visited = [0] * len(patientsToVisit)
+        for i in range(len(patientsToVisit)):
+            self.dfs(i, patientsToVisit, center, time)
+        print("saved " + str(self.bestPathValue) + "/" + str(len(patientsToVisit)))
+        #print(self.bestPath)
+        return self.bestPath, time + self.timeT
     
     # nextPatientToSaveIndex might also cater hospital
-    def dfs(self, nextPatientToSaveIndex, patientsToVisitIndices, center):
-        #self.states += 1
-        if self.states > 15000:
-            return
+    def dfs(self, nextPatientToSaveIndex, patientsToVisitIndices, center, ttt):
         self.path.append(nextPatientToSaveIndex)
         if nextPatientToSaveIndex != -1:
             self.onPath[nextPatientToSaveIndex] = 1
             self.pathLen += 1
         if self.pathLen == len(patientsToVisitIndices):
-            self.states += 1
             translatedPath = [patientsToVisitIndices[x] if x is not -1 else -1 for x in self.path]
             translatedPath.append(-1)
-            value = self.peopleSaved(translatedPath, center)
+            value, timetaken = self.peopleSaved(translatedPath, center, ttt)
             if value > self.bestPathValue:
-                self.bestPath = copy.deepcopy(self.path)
+                self.bestPath = copy.deepcopy(translatedPath)
                 self.bestPathValue = value
+                self.timeT = timetaken
         else:
             for i in range(len(patientsToVisitIndices)):
                 if self.onPath[i] == 0:
-                    self.dfs(i, patientsToVisitIndices, center)
+                    self.dfs(i, patientsToVisitIndices, center, ttt)
             # hospital to hospital case
             if nextPatientToSaveIndex != -1:
-                self.dfs(-1, patientsToVisitIndices, center) 
+                self.dfs(-1, patientsToVisitIndices, center, ttt) 
         self.path.pop()
         if nextPatientToSaveIndex != -1:
             self.onPath[nextPatientToSaveIndex] = 0
@@ -227,7 +235,7 @@ class Player(object):
             ret[ambID] = ambPat
         return ret
     
-    def peopleSaved(self, path, hospital):
+    def peopleSaved(self, path, hospital, tt):
         ret = 0
         time = 0
         locX = hospital[0]
@@ -240,20 +248,20 @@ class Player(object):
                 locX = hospital[0]
                 locY = hospital[1]
                 if p4 != -1:
-                    ret += self.saved(self.patients[p4], time)
+                    ret += self.saved(self.patients[p4], time + tt)
                 if p3 != -1:
-                    ret += self.saved(self.patients[p3], time)
+                    ret += self.saved(self.patients[p3], time + tt)
                 if p2 != -1:
-                    ret += self.saved(self.patients[p2], time)
+                    ret += self.saved(self.patients[p2], time + tt)
                 if p1 != -1:
-                    ret += self.saved(self.patients[p1], time)
+                    ret += self.saved(self.patients[p1], time + tt)
                 p1 = -1
                 p2 = -1
                 p3 = -1
                 p4 = -1
             else:
                 if p4 != -1:
-                    return -1
+                    return -1, 0
                 p4 = p3
                 p3 = p2
                 p2 = p1
@@ -261,7 +269,7 @@ class Player(object):
                 time += self.dist( [self.patients[p]['xloc'], self.patients[p]['yloc']], [locX, locY]) + 1
                 locX = self.patients[p]['xloc']
                 locY = self.patients[p]['yloc']
-        return ret
+        return ret, time
     
     def saved(self, pID, time):
 	    if time > pID['rescuetime']:
