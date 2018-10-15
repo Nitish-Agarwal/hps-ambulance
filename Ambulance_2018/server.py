@@ -6,7 +6,7 @@ from time import time as tm
 from hps.servers import SocketServer
 
 HOST = '127.0.0.1'
-PORT = 5000
+PORT = 5001
 
 class GameServer(object):
     def __init__(self, input_file=None):

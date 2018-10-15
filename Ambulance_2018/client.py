@@ -6,9 +6,10 @@ from sklearn.cluster import KMeans
 import numpy as np
 import math
 import copy
+#from numba import jit
 
 HOST = '127.0.0.1'
-PORT = 5000
+PORT = 5001
 
 class Player(object):
     def __init__(self, name):
@@ -151,60 +152,50 @@ class Player(object):
         return (res_hos, res_amb)
 
     def orderOfPatients(self, patientsToVisit, center):
-        THRESHOLD = 12
+        THRESHOLD = 15
+        self.onPath = [0]*len(patientsToVisit)
+        self.path = []
         self.bestPath = []
+        self.pathLen = 0
         self.bestPathValue = 0
+        self.states = 0
         if len(patientsToVisit) >= THRESHOLD:
-            # do something
             return [-1]
         else:
             visited = [0] * len(patientsToVisit)
             for i in range(len(patientsToVisit)):
-                pt = self.patients[patientsToVisit[i]]
-                pt = (pt['xloc'], pt['yloc'])
-                if self.canBeSaved(center, self.patients[patientsToVisit[i]], 0):
-                    self.dfs(i, patientsToVisit, visited, [i], center, 0 + self.dist(center, pt) + 1, center)
-            #print("bestPath")
-            #print(self.bestPath)
-            print("saved")
-            print(self.bestPathValue)
+                self.dfs(i, patientsToVisit, center)
+            print("saved " + str(self.bestPathValue) + "/" + str(len(patientsToVisit)))
             return self.bestPath
     
     # nextPatientToSaveIndex might also cater hospital
-    def dfs(self, nextPatientToSaveIndex, patientsToVisitIndices, visited, path, ambulanceLocation, timeElapsed, center):
-        #print(nextPatientToSaveIndex)
-        #if nextPatientToSaveIndex != -1:
-        #    visited[nextPatientToSaveIndex] = 1
-        #terminal condition
-        #if(sum(visited) == len(patientsToVisitIndices)):
-        if path.count(-1) + len(patientsToVisitIndices) == len(path):
-        #print("t cond")
-            translatedPath = [patientsToVisitIndices[x] if x is not -1 else -1 for x in path]
+    def dfs(self, nextPatientToSaveIndex, patientsToVisitIndices, center):
+        #self.states += 1
+        if self.states > 15000:
+            return
+        self.path.append(nextPatientToSaveIndex)
+        if nextPatientToSaveIndex != -1:
+            self.onPath[nextPatientToSaveIndex] = 1
+            self.pathLen += 1
+        if self.pathLen == len(patientsToVisitIndices):
+            self.states += 1
+            translatedPath = [patientsToVisitIndices[x] if x is not -1 else -1 for x in self.path]
             translatedPath.append(-1)
             value = self.peopleSaved(translatedPath, center)
             if value > self.bestPathValue:
-                #print("t cond2")
-                #print(value)
-                self.bestPath = path
+                self.bestPath = copy.deepcopy(self.path)
                 self.bestPathValue = value
         else:
-            nextAmbulanceLocation = center
-            if nextPatientToSaveIndex != -1:
-                patient = self.patients[patientsToVisitIndices[nextPatientToSaveIndex]]
-                nextAmbulanceLocation = (patient['xloc'], patient['yloc'])
             for i in range(len(patientsToVisitIndices)):
-                if i not in path:
-                    nextPath = copy.deepcopy(path)
-                    nextPath.append(i)
-                    nextPt = self.patients[patientsToVisitIndices[i]]
-                    nextPt = (nextPt['xloc'], nextPt['yloc'])
-                    self.dfs(i, patientsToVisitIndices, visited, nextPath, nextAmbulanceLocation, timeElapsed + self.dist(nextAmbulanceLocation, nextPt) + 1, center)
+                if self.onPath[i] == 0:
+                    self.dfs(i, patientsToVisitIndices, center)
             # hospital to hospital case
             if nextPatientToSaveIndex != -1:
-                nextPath = copy.deepcopy(path)
-                nextPath.append(-1)
-                self.dfs(-1, patientsToVisitIndices, visited, nextPath, center, timeElapsed + self.dist(nextAmbulanceLocation, center)+ 1, center) 
-        #visited[nextPatientToSaveIndex] = 0
+                self.dfs(-1, patientsToVisitIndices, center) 
+        self.path.pop()
+        if nextPatientToSaveIndex != -1:
+            self.onPath[nextPatientToSaveIndex] = 0
+            self.pathLen -= 1
         
     def dist(self, a, b):
         return int(abs(a[0] - b[0]) + abs(a[1] - b[1]))
